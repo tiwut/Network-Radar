@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Network Radar</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .radar-container {
+            position: relative;
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            border: 2px solid #059669;
+            background: radial-gradient(circle, rgba(5,150,105,0.1) 0%, rgba(6,78,59,0.3) 100%);
+            overflow: hidden;
+        }
+        .radar-sweep {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 100%;
+            height: 100%;
+            background: conic-gradient(from 0deg, transparent 70%, rgba(16, 185, 129, 0.8) 100%);
+            transform-origin: 0% 0%;
+            animation: spin 2s linear infinite;
+        }
+        .radar-dot {
+            position: absolute;
+            width: 6px;
+            height: 6px;
+            background-color: #34d399;
+            border-radius: 50%;
+            box-shadow: 0 0 8px 2px #34d399;
+            opacity: 0;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        @keyframes fadeDot {
+            0% { opacity: 1; transform: scale(1); }
+            100% { opacity: 0; transform: scale(0.5); }
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-gray-100 min-h-screen p-8 font-sans">
+    <div class="max-w-6xl mx-auto">
+        
+        <header class="mb-10 flex justify-between items-center bg-gray-800 p-6 rounded-2xl border border-gray-700 shadow-xl">
+            <div class="flex items-center space-x-6">
+                <div class="radar-container hidden md:block" id="radar-visual">
+                    <div class="radar-sweep" id="radar-sweep"></div>
+                </div>
+                <div>
+                    <h1 class="text-4xl font-bold text-emerald-400">Local Network Radar</h1>
+                    <p class="text-gray-400 text-sm mt-2">Discovering devices on your subnet</p>
+                    <div class="flex space-x-4 mt-3">
+                        <span class="text-sm bg-gray-900 px-3 py-1 rounded border border-gray-700">Total Devices: <strong id="dev-count" class="text-emerald-400">0</strong></span>
+                        <span class="text-sm bg-gray-900 px-3 py-1 rounded border border-gray-700">Last Scan: <strong id="last-scan" class="text-blue-400">Never</strong></span>
+                    </div>
+                </div>
+            </div>
+            <div>
+                <button id="btn-scan" onclick="forceScan()" class="bg-emerald-600 hover:bg-emerald-500 text-white px-6 py-3 rounded-lg text-sm font-bold transition flex items-center shadow-lg shadow-emerald-900/50">
+                    <span id="btn-text">📡 Scan Network Now</span>
+                </button>
+            </div>
+        </header>
+
+        <div id="device-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+        </div>
+    </div>
+
+    <script>
+        function guessIcon(vendor) {
+            const v = vendor.toLowerCase();
+            if (v.includes('apple')) return '🍎';
+            if (v.includes('samsung')) return '📱';
+            if (v.includes('intel')) return '💻';
+            if (v.includes('raspberry') || v.includes('pi')) return '🍓';
+            if (v.includes('sony') || v.includes('nintendo')) return '🎮';
+            if (v.includes('amazon')) return '🔊';
+            if (v.includes('tp-link') || v.includes('netgear') || v.includes('ubiquiti')) return '🌐';
+            return '🖥️';
+        }
+
+        function updateUI(data) {
+            document.getElementById('dev-count').innerText = data.total_devices;
+            document.getElementById('last-scan').innerText = data.last_scan;
+
+            const btn = document.getElementById('btn-scan');
+            const btnText = document.getElementById('btn-text');
+            const radarSweep = document.getElementById('radar-sweep');
+
+            if (data.is_scanning) {
+                btn.classList.add('opacity-50', 'cursor-not-allowed');
+                btnText.innerText = '🔄 Scanning...';
+                radarSweep.style.display = 'block';
+            } else {
+                btn.classList.remove('opacity-50', 'cursor-not-allowed');
+                btnText.innerText = '📡 Scan Network Now';
+                radarSweep.style.display = 'none';
+            }
+
+            const grid = document.getElementById('device-grid');
+            if (data.devices.length === 0 && !data.is_scanning) {
+                grid.innerHTML = `<div class="col-span-full text-center text-gray-500 py-10">No devices found. Try scanning again.</div>`;
+                return;
+            }
+
+            grid.innerHTML = '';
+            data.devices.forEach(d => {
+                grid.innerHTML += `
+                    <div class="bg-gray-800 p-5 rounded-xl border border-gray-700 shadow-lg hover:border-emerald-500 transition duration-300">
+                        <div class="flex justify-between items-start mb-3">
+                            <span class="text-3xl">${guessIcon(d.vendor)}</span>
+                            <span class="bg-gray-900 text-xs font-mono text-emerald-400 px-2 py-1 rounded border border-gray-700">${d.ip}</span>
+                        </div>
+                        <h3 class="text-lg font-bold text-gray-200 truncate" title="${d.vendor}">${d.vendor}</h3>
+                        <p class="text-xs text-gray-500 font-mono mt-1">MAC: ${d.mac.toUpperCase()}</p>
+                    </div>
+                `;
+            });
+        }
+
+        async function fetchData() {
+            try {
+                const res = await fetch('/api/radar');
+                const data = await res.json();
+                updateUI(data);
+            } catch (err) { console.error("Error fetching radar data", err); }
+        }
+
+        async function forceScan() {
+            document.getElementById('radar-sweep').style.display = 'block';
+            await fetch('/api/force-scan', { method: 'POST' });
+            fetchData();
+        }
+
+        setInterval(() => {
+            if (document.getElementById('radar-sweep').style.display !== 'none') {
+                const radar = document.getElementById('radar-visual');
+                const dot = document.createElement('div');
+                dot.className = 'radar-dot';
+                dot.style.top = Math.random() * 80 + 10 + '%';
+                dot.style.left = Math.random() * 80 + 10 + '%';
+                dot.style.animation = 'fadeDot 2s ease-out forwards';
+                radar.appendChild(dot);
+                setTimeout(() => dot.remove(), 2000);
+            }
+        }, 800);
+
+        fetchData();
+        setInterval(fetchData, 2000);
+    </script>
+</body>
+</html>
