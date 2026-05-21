@@ -4,6 +4,9 @@ An ultra-lightweight, self-hosted Docker utility that sweeps your local network 
 
 Written in optimized C++ for maximum speed and containerized in a zero-vulnerability Alpine image.
 
+<img width="1216" height="453" alt="image" src="https://github.com/user-attachments/assets/ad224cab-f6d0-411a-88e2-014c357c6bb4" />
+
+
 ## ✨ Features
 - **ARP Scanning:** Bypasses basic firewalls by pinging hardware at the MAC layer.
 - **Auto Vendor Resolution:** Identifies devices as Apple, Samsung, Intel, Nintendo, etc., based on their hardware addresses.
